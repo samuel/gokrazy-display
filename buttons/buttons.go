@@ -10,8 +10,9 @@ import (
 )
 
 // PiTFT28 lists the GPIOs of the four tactile switches on the Adafruit PiTFT
-// 2.8" boards.
-var PiTFT28 = []int{17, 22, 23, 27}
+// 2.8" boards in physical order, left to right with the display in landscape
+// (rotate=270).
+var PiTFT28 = []int{23, 22, 27, 17}
 
 const debounce = 10 * time.Millisecond
 

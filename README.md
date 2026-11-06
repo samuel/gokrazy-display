@@ -15,7 +15,8 @@ Pure Go, no cgo. Linux only.
 - `touch`: finds and reads an evdev touchscreen (`/dev/input/eventN` reporting `ABS_X`, `ABS_Y` and `BTN_TOUCH`) and
   scales raw coordinates to the display.
 - `buttons`: reads push buttons wired between GPIO lines and ground through the GPIO character device
-  (`/dev/gpiochipN`), with internal pull-ups and debouncing. `buttons.PiTFT28` lists the PiTFT 2.8" switch GPIOs.
+  (`/dev/gpiochipN`), with internal pull-ups and debouncing. `buttons.PiTFT28` lists the PiTFT 2.8" switch GPIOs in physical order,
+  left to right in landscape.
 - `console`: puts the active virtual terminal into graphics mode so the framebuffer console does not draw over the
   screen.
 
@@ -34,7 +35,7 @@ Flags:
 - `-input`: touchscreen device (default: first touchscreen found)
 - `-wait`: how long to wait for the devices to appear (default 30s)
 - `-radius`: dot radius in pixels
-- `-buttons`: comma-separated button GPIOs (default `17,22,23,27`); empty disables buttons
+- `-buttons`: comma-separated button GPIOs (default `23,22,27,17`, left to right); empty disables buttons
 - `-gpiochip`: GPIO chip the buttons are on (default `gpiochip0`)
 
 ## gokrazy setup for the PiTFT 2.8" capacitive
