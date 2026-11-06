@@ -1,0 +1,84 @@
+# gokrazy-fbtest
+
+Framebuffer and touchscreen access for [gokrazy](https://gokrazy.org), plus `fbtouch`, a test program for a display
+with a touchscreen. Tested with the [Adafruit PiTFT 2.8" capacitive](https://www.adafruit.com/product/1983)
+(ILI9341 display over SPI, FT6206 touch controller over I2C) on a Raspberry Pi 1 Model B.
+
+Pure Go, no cgo.
+
+## Packages
+
+- `fb`: opens and memory-maps `/dev/fbN` as a `draw.Image`. Supports 16, 24 and 32 bits per pixel using the channel
+  layout the driver reports.
+- `touch`: finds and reads an evdev touchscreen (`/dev/input/eventN` reporting `ABS_X`, `ABS_Y` and `BTN_TOUCH`) and
+  scales raw coordinates to the display.
+- `console`: puts the active virtual terminal into graphics mode so the framebuffer console does not draw over the
+  screen.
+
+## fbtouch
+
+Draws a white border, red/green/blue/white color bars along the bottom, and a gray box in the top-left corner. Each
+touch draws a dot under the finger; touching the gray box clears the screen. Device details and touch coordinates are
+logged.
+
+Flags:
+
+- `-fb`: framebuffer device (default `/dev/fb0`)
+- `-input`: touchscreen device (default: first touchscreen found)
+- `-wait`: how long to wait for the devices to appear (default 30s)
+- `-radius`: dot radius in pixels
+
+## gokrazy setup for the PiTFT 2.8" capacitive
+
+### Kernel
+
+gokrazy does not load kernel modules automatically, so the drivers must be built into the kernel:
+
+| Option                         | Purpose                                                 |
+| ------------------------------ | ------------------------------------------------------- |
+| `CONFIG_SPI_BCM2835`           | SPI controller                                          |
+| `CONFIG_I2C_BCM2835`           | I2C controller                                          |
+| `CONFIG_DRM`                   | DRM core                                                |
+| `CONFIG_TINYDRM_ILI9341`       | ILI9341 panel driver                                    |
+| `CONFIG_DRM_FBDEV_EMULATION`   | `/dev/fb0` on top of DRM                                |
+| `CONFIG_FB_DEVICE`             | `/dev/fbN` device nodes                                 |
+| `CONFIG_TOUCHSCREEN_EDT_FT5X06` | FT6206 touch controller                               |
+| `CONFIG_INPUT_EVDEV`           | `/dev/input/eventN`                                     |
+| `CONFIG_FB_SIMPLE` (disabled)  | keeps the firmware framebuffer from claiming `/dev/fb0` |
+
+The kernel package must also ship `overlays/pitft28-capacitive.dtbo`; the gokrazy packer copies `overlays/*.dtbo` from
+the kernel package to the boot partition. [github.com/samuel/kernel-rpi-os-32](https://github.com/samuel/kernel-rpi-os-32)
+(32-bit, for the Raspberry Pi 1/Zero) does both.
+
+### Instance config
+
+In the instance's `config.json`:
+
+```json
+"KernelPackage": "github.com/samuel/kernel-rpi-os-32/dist",
+"FirmwarePackage": "github.com/gokrazy-community/firmware-rpi/dist",
+"BootloaderExtraLines": [
+  "dtparam=i2c_arm=on",
+  "dtparam=spi=on",
+  "dtoverlay=pitft28-capacitive,drm,rotate=90,touch-swapxy,touch-invx"
+]
+```
+
+The `drm` overlay parameter selects the DRM `ili9341` driver instead of the staging fbtft driver. `rotate=90` gives a
+320x240 landscape display; `touch-swapxy` and `touch-invx` match the touch axes to that rotation. For other rotations,
+adjust `touch-swapxy`, `touch-invx` and `touch-invy` until the dots in `fbtouch` land under the finger.
+
+Remove `github.com/gokrazy/fbstatus` from `Packages` when running `fbtouch`; both draw to `/dev/fb0`.
+
+Add `fbtouch`:
+
+```sh
+gok -i <instance> add github.com/samuel/gokrazy-fbtest/cmd/fbtouch
+```
+
+## Development
+
+```sh
+go test ./...
+GOOS=linux GOARCH=arm GOARM=6 golangci-lint run ./...
+```
