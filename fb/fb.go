@@ -11,6 +11,8 @@ import (
 	"image/color"
 	"image/draw"
 	"os"
+	"path/filepath"
+	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -75,6 +77,7 @@ func (f *FixScreenInfo) Name() string {
 // Device is a memory-mapped framebuffer. It implements draw.Image.
 type Device struct {
 	file   *os.File
+	path   string
 	mem    []byte
 	Var    VarScreenInfo
 	Fix    FixScreenInfo
@@ -91,7 +94,7 @@ func Open(path string) (*Device, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &Device{file: f}
+	d := &Device{file: f, path: path}
 	if err := d.ioctl(ioctlGetVScreenInfo, unsafe.Pointer(&d.Var)); err != nil {
 		f.Close() //nolint:errcheck // the ioctl error is more useful
 		return nil, fmt.Errorf("FBIOGET_VSCREENINFO: %w", err)
@@ -124,12 +127,37 @@ func Open(path string) (*Device, error) {
 	return d, nil
 }
 
+// ErrNotFound is returned by Find when no framebuffer matches.
+var ErrNotFound = errors.New("no matching framebuffer found")
+
+// Find returns the path of the first framebuffer device whose driver name
+// (/sys/class/graphics/fbN/name) contains driver.
+func Find(driver string) (string, error) {
+	dirs, err := filepath.Glob("/sys/class/graphics/fb*")
+	if err != nil {
+		return "", err
+	}
+	for _, dir := range dirs {
+		name, err := os.ReadFile(filepath.Join(dir, "name"))
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(name), driver) {
+			return filepath.Join("/dev", filepath.Base(dir)), nil
+		}
+	}
+	return "", ErrNotFound
+}
+
 func (d *Device) ioctl(req uintptr, arg unsafe.Pointer) error {
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, d.file.Fd(), req, uintptr(arg)); errno != 0 {
 		return errno
 	}
 	return nil
 }
+
+// Path returns the device node path.
+func (d *Device) Path() string { return d.path }
 
 // Close unmaps and closes the device.
 func (d *Device) Close() error {

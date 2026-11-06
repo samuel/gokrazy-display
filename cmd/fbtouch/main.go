@@ -21,7 +21,8 @@ import (
 )
 
 var (
-	fbPath    = flag.String("fb", "/dev/fb0", "framebuffer device")
+	fbPath    = flag.String("fb", "", "framebuffer device (overrides -fb-driver)")
+	fbDriver  = flag.String("fb-driver", "ili9341", "use the first framebuffer whose driver name contains this")
 	inputPath = flag.String("input", "", "touchscreen event device (default: first touchscreen found)")
 	waitFor   = flag.Duration("wait", 30*time.Second, "how long to wait for the devices to appear")
 	dotRadius = flag.Int("radius", 4, "radius of the dot drawn at each touch")
@@ -52,13 +53,13 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, unix.SIGTERM)
 	defer stop()
 
-	display, err := retry(ctx, func() (*fb.Device, error) { return fb.Open(*fbPath) })
+	display, err := retry(ctx, openDisplay)
 	if err != nil {
-		return fmt.Errorf("opening framebuffer %s: %w", *fbPath, err)
+		return fmt.Errorf("opening framebuffer: %w", err)
 	}
 	defer display.Close() //nolint:errcheck // nothing to do on failure at exit
 	slog.Info("framebuffer",
-		"path", *fbPath,
+		"path", display.Path(),
 		"driver", display.Fix.Name(),
 		"width", display.Var.XRes,
 		"height", display.Var.YRes,
@@ -75,14 +76,18 @@ func run() error {
 	defer ts.Close() //nolint:errcheck // nothing to do on failure at exit
 	slog.Info("touchscreen", "path", ts.Path(), "name", ts.Name(), "x", ts.X, "y", ts.Y)
 
-	if cons, err := console.EnterGraphics(); err != nil {
-		slog.Warn("could not put console into graphics mode", "err", err)
-	} else {
-		defer func() {
-			if err := cons.Restore(); err != nil {
-				slog.Warn("could not restore console", "err", err)
-			}
-		}()
+	// The framebuffer console only draws on fb0 by default, so other
+	// framebuffers don't need the console in graphics mode.
+	if display.Path() == "/dev/fb0" {
+		if cons, err := console.EnterGraphics(); err != nil {
+			slog.Warn("could not put console into graphics mode", "err", err)
+		} else {
+			defer func() {
+				if err := cons.Restore(); err != nil {
+					slog.Warn("could not restore console", "err", err)
+				}
+			}()
+		}
 	}
 
 	drawBackground(display)
@@ -130,6 +135,17 @@ func run() error {
 			drawDot(display, p, *dotRadius, colors[stroke%len(colors)])
 		}
 	}
+}
+
+func openDisplay() (*fb.Device, error) {
+	path := *fbPath
+	if path == "" {
+		var err error
+		if path, err = fb.Find(*fbDriver); err != nil {
+			return nil, fmt.Errorf("driver %q: %w", *fbDriver, err)
+		}
+	}
+	return fb.Open(path)
 }
 
 func openTouch() (*touch.Device, error) {
