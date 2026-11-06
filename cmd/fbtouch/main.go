@@ -14,9 +14,9 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/samuel/gokrazy-fbtest/console"
-	"github.com/samuel/gokrazy-fbtest/fb"
-	"github.com/samuel/gokrazy-fbtest/touch"
+	"github.com/samuel/gokrazy-display/console"
+	"github.com/samuel/gokrazy-display/fb"
+	"github.com/samuel/gokrazy-display/touch"
 	"golang.org/x/sys/unix"
 )
 

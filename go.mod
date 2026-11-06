@@ -1,4 +1,4 @@
-module github.com/samuel/gokrazy-fbtest
+module github.com/samuel/gokrazy-display
 
 go 1.27.3
 

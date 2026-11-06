@@ -1,4 +1,4 @@
-# gokrazy-fbtest
+# gokrazy-display
 
 Framebuffer and touchscreen access for [gokrazy](https://gokrazy.org), plus `fbtouch`, a test program for a display
 with a touchscreen. Tested with the [Adafruit PiTFT 2.8" capacitive](https://www.adafruit.com/product/1983)
@@ -8,8 +8,9 @@ Pure Go, no cgo.
 
 ## Packages
 
-- `fb`: finds a framebuffer by driver name, and opens and memory-maps `/dev/fbN` as a `draw.Image`. Supports 16, 24 and 32 bits per pixel using the channel
-  layout the driver reports.
+- `fb`: finds a framebuffer by driver name, and opens and memory-maps `/dev/fbN` as a `draw.Image`. Supports 16, 24
+  and 32 bits per pixel using the channel layout the driver reports. Opening forces a mode set, which DRM drivers need
+  to enable the display when the framebuffer console isn't bound to it.
 - `touch`: finds and reads an evdev touchscreen (`/dev/input/eventN` reporting `ABS_X`, `ABS_Y` and `BTN_TOUCH`) and
   scales raw coordinates to the display.
 - `console`: puts the active virtual terminal into graphics mode so the framebuffer console does not draw over the
@@ -64,18 +65,19 @@ In the instance's `config.json`:
 "BootloaderExtraLines": [
   "dtparam=i2c_arm=on",
   "dtparam=spi=on",
-  "dtoverlay=pitft28-capacitive,drm,rotate=90,touch-swapxy,touch-invx"
+  "dtoverlay=pitft28-capacitive,drm,rotate=270,touch-swapxy,touch-invx"
 ]
 ```
 
-The `drm` overlay parameter selects the DRM `ili9341` driver instead of the staging fbtft driver. `rotate=90` gives a
-320x240 landscape display; `touch-swapxy` and `touch-invx` match the touch axes to that rotation. For other rotations,
+The `drm` overlay parameter selects the DRM `ili9341` driver instead of the staging fbtft driver. `rotate=270` gives a
+320x240 landscape display (the DRM driver's rotation is 180° from fbtft's, which uses `rotate=90` for the same
+orientation); `touch-swapxy` and `touch-invx` match the touch axes to that rotation. For other rotations,
 adjust `touch-swapxy`, `touch-invx` and `touch-invy` until the dots in `fbtouch` land under the finger.
 
 Add `fbtouch`:
 
 ```sh
-gok -i <instance> add github.com/samuel/gokrazy-fbtest/cmd/fbtouch
+gok -i <instance> add github.com/samuel/gokrazy-display/cmd/fbtouch
 ```
 
 ## Development

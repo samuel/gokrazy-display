@@ -20,7 +20,11 @@ import (
 
 const (
 	ioctlGetVScreenInfo = 0x4600 // FBIOGET_VSCREENINFO
+	ioctlPutVScreenInfo = 0x4601 // FBIOPUT_VSCREENINFO
 	ioctlGetFScreenInfo = 0x4602 // FBIOGET_FSCREENINFO
+
+	activateNow   = 0   // FB_ACTIVATE_NOW
+	activateForce = 128 // FB_ACTIVATE_FORCE
 )
 
 // Bitfield describes where a color channel is stored in a pixel.
@@ -88,7 +92,8 @@ type Device struct {
 
 var _ draw.Image = (*Device)(nil)
 
-// Open opens and memory-maps a framebuffer device such as /dev/fb0.
+// Open opens and memory-maps a framebuffer device such as /dev/fb0, and
+// enables the display output.
 func Open(path string) (*Device, error) {
 	f, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil {
@@ -98,6 +103,15 @@ func Open(path string) (*Device, error) {
 	if err := d.ioctl(ioctlGetVScreenInfo, unsafe.Pointer(&d.Var)); err != nil {
 		f.Close() //nolint:errcheck // the ioctl error is more useful
 		return nil, fmt.Errorf("FBIOGET_VSCREENINFO: %w", err)
+	}
+	// DRM fbdev emulation only enables the display (and initializes panels
+	// such as the ILI9341) on a mode set. The framebuffer console does this
+	// for fb0, but nothing does for other framebuffers.
+	v := d.Var
+	v.Activate = activateNow | activateForce
+	if err := d.ioctl(ioctlPutVScreenInfo, unsafe.Pointer(&v)); err != nil {
+		f.Close() //nolint:errcheck // the ioctl error is more useful
+		return nil, fmt.Errorf("FBIOPUT_VSCREENINFO: %w", err)
 	}
 	if err := d.ioctl(ioctlGetFScreenInfo, unsafe.Pointer(&d.Fix)); err != nil {
 		f.Close() //nolint:errcheck // the ioctl error is more useful
